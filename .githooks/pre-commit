@@ -16,6 +16,6 @@ echo "▸ flutter analyze"
 flutter analyze --no-pub
 
 echo "▸ flutter test"
-flutter test --no-pub --reporter=compact
+flutter test --no-pub --reporter=failures-only
 
 echo "✓ pronto para commitar"
