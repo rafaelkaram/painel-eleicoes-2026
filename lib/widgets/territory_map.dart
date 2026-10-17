@@ -56,10 +56,13 @@ class TerritoryMap extends StatelessWidget {
     final corLider = leaderColor ?? context.election.leader;
     final corVice = runnerUpColor ?? context.election.contested;
     final byUf = {for (final state in states) state.uf: state};
-    final leadingA = states.where((s) => s.leadsA);
-    final leadingB = states.where((s) => !s.leadsA);
-    final countA = TerritoryCount.from(leadingA);
-    final countB = TerritoryCount.from(leadingB);
+
+    // Só entra no placar territorial quem já tem urna apurada: UF sem
+    // seção totalizada não lidera para ninguém.
+    final apuradas = states.where((s) => !s.awaitingCount);
+    final countA = TerritoryCount.from(apuradas.where((s) => s.leadsA));
+    final countB = TerritoryCount.from(apuradas.where((s) => !s.leadsA));
+    final aguardando = apuradas.isEmpty;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -74,6 +77,7 @@ class TerritoryMap extends StatelessWidget {
           _Header(
             countA: countA,
             countB: countB,
+            awaiting: aguardando,
             leaderColor: corLider,
             runnerUpColor: corVice,
           ),
@@ -82,6 +86,7 @@ class TerritoryMap extends StatelessWidget {
             states: states,
             countA: countA,
             countB: countB,
+            awaiting: aguardando,
             onStateTap: onStateTap,
             leaderLabel: leaderLabel,
             runnerUpLabel: runnerUpLabel,
@@ -127,12 +132,14 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.countA,
     required this.countB,
+    required this.awaiting,
     required this.leaderColor,
     required this.runnerUpColor,
   });
 
   final TerritoryCount countA;
   final TerritoryCount countB;
+  final bool awaiting;
   final Color leaderColor;
   final Color runnerUpColor;
 
@@ -153,7 +160,9 @@ class _Header extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                'Liderança consolidada por unidades federativas apuradas',
+                awaiting
+                    ? 'Nenhuma seção totalizada — mapa sem liderança definida'
+                    : 'Liderança consolidada por unidades federativas apuradas',
                 style: context.text.bodySmall?.copyWith(
                   color: context.colors.onSurfaceVariant,
                 ),
@@ -167,6 +176,7 @@ class _Header extends StatelessWidget {
         _ScoreBox(
           countA: countA,
           countB: countB,
+          awaiting: awaiting,
           leaderColor: leaderColor,
           runnerUpColor: runnerUpColor,
         ),
@@ -179,12 +189,14 @@ class _ScoreBox extends StatelessWidget {
   const _ScoreBox({
     required this.countA,
     required this.countB,
+    required this.awaiting,
     required this.leaderColor,
     required this.runnerUpColor,
   });
 
   final TerritoryCount countA;
   final TerritoryCount countB;
+  final bool awaiting;
   final Color leaderColor;
   final Color runnerUpColor;
 
@@ -216,20 +228,40 @@ class _ScoreBox extends StatelessWidget {
         color: context.colors.surfaceContainerHigh,
         borderRadius: AppRadius.lgAll,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: AppSpacing.sm,
-        children: [
-          side(countA, leaderColor, Icons.verified),
-          Text(
-            'vs',
-            style: context.text.labelSmall?.copyWith(
-              color: context.colors.onSurfaceVariant,
+      // `0 vs 0` leria como empate apurado. Sem urna, o placar não existe.
+      child: awaiting
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: AppSpacing.xs,
+              children: [
+                Icon(
+                  Icons.hourglass_empty,
+                  size: 16,
+                  color: context.colors.onSurfaceVariant,
+                ),
+                Text(
+                  'AGUARDANDO APURAÇÃO',
+                  style: context.text.labelSmall?.copyWith(
+                    color: context.colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: AppSpacing.sm,
+              children: [
+                side(countA, leaderColor, Icons.verified),
+                Text(
+                  'vs',
+                  style: context.text.labelSmall?.copyWith(
+                    color: context.colors.onSurfaceVariant,
+                  ),
+                ),
+                side(countB, runnerUpColor, Icons.shield_outlined),
+              ],
             ),
-          ),
-          side(countB, runnerUpColor, Icons.shield_outlined),
-        ],
-      ),
     );
   }
 }
@@ -239,6 +271,7 @@ class _MapCanvas extends StatefulWidget {
     required this.states,
     required this.countA,
     required this.countB,
+    required this.awaiting,
     required this.onStateTap,
     required this.leaderLabel,
     required this.runnerUpLabel,
@@ -249,6 +282,7 @@ class _MapCanvas extends StatefulWidget {
   final List<StateTally> states;
   final TerritoryCount countA;
   final TerritoryCount countB;
+  final bool awaiting;
   final void Function(StateTally state)? onStateTap;
   final String leaderLabel;
   final String runnerUpLabel;
@@ -290,7 +324,17 @@ class _MapCanvasState extends State<_MapCanvas> {
     return null;
   }
 
+  /// Cor do lado que lidera, ou neutro enquanto não há urna apurada.
+  Color _accentFor(BuildContext context, StateTally state) {
+    if (state.awaitingCount) return context.colors.onSurfaceVariant;
+    return state.leadsA ? widget.leaderColor : widget.runnerUpColor;
+  }
+
   Color _fillFor(BuildContext context, StateTally state) {
+    // UF sem seção totalizada fica no cinza de fundo, igual às que o mapa
+    // não conhece: pintar de partido seria afirmar um resultado inexistente.
+    if (state.awaitingCount) return context.colors.surfaceContainerHigh;
+
     final accent = state.leadsA ? widget.leaderColor : widget.runnerUpColor;
     final intensity =
         _floor +
@@ -409,9 +453,7 @@ class _MapCanvasState extends State<_MapCanvas> {
                                 path: geo.paths[hovered.isoCode]!,
                                 rect: rect,
                                 fill: colors[hovered.isoCode]!,
-                                accent: hovered.leadsA
-                                    ? widget.leaderColor
-                                    : widget.runnerUpColor,
+                                accent: _accentFor(context, hovered),
                                 t: t,
                               ),
                             ),
@@ -425,6 +467,7 @@ class _MapCanvasState extends State<_MapCanvas> {
                         child: _Legend(
                           countA: widget.countA,
                           countB: widget.countB,
+                          awaiting: widget.awaiting,
                           leaderLabel: widget.leaderLabel,
                           runnerUpLabel: widget.runnerUpLabel,
                           leaderColor: widget.leaderColor,
@@ -452,9 +495,7 @@ class _MapCanvasState extends State<_MapCanvas> {
                             state: hovered,
                             leaderLabel: widget.leaderLabel,
                             runnerUpLabel: widget.runnerUpLabel,
-                            accent: hovered.leadsA
-                                ? widget.leaderColor
-                                : widget.runnerUpColor,
+                            accent: _accentFor(context, hovered),
                           ),
                         ),
                       ),
@@ -493,7 +534,9 @@ class _FederalDistrictMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = state.leadsA
+    final accent = state.awaitingCount
+        ? context.colors.onSurfaceVariant
+        : state.leadsA
         ? context.election.leader
         : context.election.contested;
 
@@ -644,42 +687,50 @@ class _StateTooltip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: AppSpacing.xs),
-          Row(
-            // Sem `Spacer`: ele é um `Expanded` e roubaria um terço da linha
-            // dos dois textos, truncando o valor do líder.
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  '${state.leadsA ? leaderLabel : runnerUpLabel}: '
-                  '${formatPercentual(state.leaderShare)}',
-                  style: context.text.labelLarge?.copyWith(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
+          if (state.awaitingCount)
+            Text(
+              'Aguardando a primeira seção totalizada',
+              style: context.text.labelLarge?.copyWith(color: accent),
+              maxLines: 2,
+            )
+          else ...[
+            Row(
+              // Sem `Spacer`: ele é um `Expanded` e roubaria um terço da linha
+              // dos dois textos, truncando o valor do líder.
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(
+                    '${state.leadsA ? leaderLabel : runnerUpLabel}: '
+                    '${formatPercentual(state.leaderShare)}',
+                    style: context.text.labelLarge?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Flexible(
-                child: Text(
-                  '${state.leadsA ? runnerUpLabel : leaderLabel}: '
-                  '${formatPercentual(state.runnerUpShare)}',
-                  style: muted,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: Text(
+                    '${state.leadsA ? runnerUpLabel : leaderLabel}: '
+                    '${formatPercentual(state.runnerUpShare)}',
+                    style: muted,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          Text(
-            'MARGEM: ${formatPontos(state.margin)}',
-            style: muted,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+              ],
+            ),
+            Text(
+              'MARGEM: ${formatPontos(state.margin)}',
+              style: muted,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );
@@ -690,6 +741,7 @@ class _Legend extends StatelessWidget {
   const _Legend({
     required this.countA,
     required this.countB,
+    required this.awaiting,
     required this.leaderLabel,
     required this.runnerUpLabel,
     required this.leaderColor,
@@ -698,6 +750,7 @@ class _Legend extends StatelessWidget {
 
   final TerritoryCount countA;
   final TerritoryCount countB;
+  final bool awaiting;
   final String leaderLabel;
   final String runnerUpLabel;
   final Color leaderColor;
@@ -736,10 +789,12 @@ class _Legend extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         spacing: AppSpacing.xs,
-        children: [
-          row('$leaderLabel: ${countA.legendLabel}', leaderColor),
-          row('$runnerUpLabel: ${countB.legendLabel}', runnerUpColor),
-        ],
+        children: awaiting
+            ? [row('SEM SEÇÃO TOTALIZADA', context.colors.onSurfaceVariant)]
+            : [
+                row('$leaderLabel: ${countA.legendLabel}', leaderColor),
+                row('$runnerUpLabel: ${countB.legendLabel}', runnerUpColor),
+              ],
       ),
     );
   }
@@ -762,10 +817,14 @@ class _Highlight extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = state.leadsA ? leaderColor : runnerUpColor;
     final muted = context.text.labelSmall?.copyWith(
       color: context.colors.onSurfaceVariant,
     );
+    final accent = state.awaitingCount
+        ? context.colors.onSurfaceVariant
+        : state.leadsA
+        ? leaderColor
+        : runnerUpColor;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.xs),
@@ -796,21 +855,30 @@ class _Highlight extends StatelessWidget {
               ),
             ],
           ),
-          Text(
-            '${state.leadsA ? leaderLabel : runnerUpLabel}: '
-            '${formatPercentual(state.leaderShare)}',
-            style: context.text.labelLarge?.copyWith(
-              color: accent,
-              fontWeight: FontWeight.w700,
+          if (state.awaitingCount)
+            Text(
+              'AGUARDANDO APURAÇÃO',
+              style: context.text.labelLarge?.copyWith(color: accent),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            )
+          else ...[
+            Text(
+              '${state.leadsA ? leaderLabel : runnerUpLabel}: '
+              '${formatPercentual(state.leaderShare)}',
+              style: context.text.labelLarge?.copyWith(
+                color: accent,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          Text(
-            '${state.leadsA ? runnerUpLabel : leaderLabel}: '
-            '${formatPercentual(state.runnerUpShare)}',
-            style: muted,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+            Text(
+              '${state.leadsA ? runnerUpLabel : leaderLabel}: '
+              '${formatPercentual(state.runnerUpShare)}',
+              style: muted,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );

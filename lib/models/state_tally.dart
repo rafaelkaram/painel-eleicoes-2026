@@ -24,6 +24,14 @@ class StateTally {
 
   double get shareB => 1 - shareA;
 
+  /// `true` enquanto a UF não tem nenhuma seção totalizada.
+  ///
+  /// Zero voto dos dois lados deixa `shareA` em 0, e daí todo o resto
+  /// conclui o que não dá para concluir: B liderando com margem cheia nos
+  /// 27 estados. Antes da primeira urna não há líder — quem for perguntar
+  /// por cor, rótulo ou margem precisa consultar isto primeiro.
+  bool get awaitingCount => countedShare <= 0;
+
   bool get leadsA => shareA >= 0.5;
 
   double get leaderShare => leadsA ? shareA : shareB;

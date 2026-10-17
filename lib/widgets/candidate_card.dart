@@ -351,7 +351,9 @@ class _Footer extends StatelessWidget {
     );
     return Row(
       children: [
-        if (tally.isLeading) ...[
+        // Sem voto apurado não há o que confirmar: o selo verde ao lado de
+        // "Aguardando apuração" lia como candidato já eleito.
+        if (tally.isLeading && tally.votes > 0) ...[
           Icon(Icons.verified, size: 16, color: context.election.leader),
           const SizedBox(width: AppSpacing.xs),
         ],

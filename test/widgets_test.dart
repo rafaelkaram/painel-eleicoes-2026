@@ -330,6 +330,27 @@ void main() {
       expect(espelho.leadsA, isFalse);
     });
 
+    test('sem seção totalizada não há líder na UF', () {
+      const zerada = StateTally(
+        uf: 'XX',
+        name: 'Zerada',
+        shareA: 0,
+        countedShare: 0,
+      );
+      const aberta = StateTally(
+        uf: 'YY',
+        name: 'Aberta',
+        shareA: 0,
+        countedShare: 0.01,
+      );
+
+      expect(zerada.awaitingCount, isTrue);
+      expect(aberta.awaitingCount, isFalse);
+      // `leadsA` segue sendo pura comparação de fração: quem decide se a
+      // pergunta faz sentido é `awaitingCount`.
+      expect(zerada.leadsA, isFalse);
+    });
+
     test('a contagem separa estados do DF', () {
       final a = DemoTallies.states.where((s) => s.leadsA);
       final b = DemoTallies.states.where((s) => !s.leadsA);
@@ -397,6 +418,60 @@ void main() {
 
       expect(find.byType(TerritoryMap), findsOneWidget);
       expect(tocado, isNull, reason: 'nada tocado ainda');
+    });
+
+    testWidgets('turno sem urna apurada não pinta nem conta liderança', (
+      tester,
+    ) async {
+      // O 2º turno antes da votação: o TSE já devolve as 27 UFs, todas com
+      // zero voto dos dois lados. Antes, `shareA == 0` fazia o mapa
+      // declarar B líder com margem cheia nos 27 estados.
+      final zerados = [
+        for (final s in DemoTallies.states)
+          StateTally(uf: s.uf, name: s.name, shareA: 0, countedShare: 0),
+      ];
+
+      await pumpInTheme(
+        tester,
+        SizedBox(width: 900, child: TerritoryMap(states: zerados)),
+        surface: const Size(1000, 900),
+      );
+
+      expect(zerados.every((s) => s.awaitingCount), isTrue);
+      expect(find.text('AGUARDANDO APURAÇÃO'), findsWidgets);
+      expect(find.text('SEM SEÇÃO TOTALIZADA'), findsOneWidget);
+      expect(
+        find.textContaining('ESTADOS'),
+        findsNothing,
+        reason: 'ninguém lidera estado nenhum antes da primeira urna',
+      );
+      expect(find.text('0 + DF'), findsNothing);
+      expect(find.text('26 + DF'), findsNothing);
+    });
+
+    testWidgets('UF já apurada continua pintada quando as outras não estão', (
+      tester,
+    ) async {
+      // Meio da noite de apuração: só SP abriu. O placar é 1 a 0, não 1 a 26.
+      final estados = [
+        for (final s in DemoTallies.states)
+          StateTally(
+            uf: s.uf,
+            name: s.name,
+            shareA: s.uf == 'SP' ? 0.62 : 0,
+            countedShare: s.uf == 'SP' ? 0.4 : 0,
+          ),
+      ];
+
+      await pumpInTheme(
+        tester,
+        SizedBox(width: 900, child: TerritoryMap(states: estados)),
+        surface: const Size(1000, 900),
+      );
+
+      expect(find.text('A: 1 ESTADO'), findsOneWidget);
+      expect(find.text('B: 0 ESTADOS'), findsOneWidget);
+      expect(find.text('1'), findsWidgets);
     });
 
     testWidgets('coluna estreita cai para dois destaques por linha', (
