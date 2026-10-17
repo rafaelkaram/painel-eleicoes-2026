@@ -12,12 +12,7 @@ import 'urna_mark.dart';
 /// Spec do design.md: altura 48, fundo `surface`, badge AO VIVO à esquerda das
 /// métricas de sincronismo.
 class PainelAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const PainelAppBar({
-    super.key,
-    this.title = marca,
-    this.latency,
-    this.lastSync,
-  });
+  const PainelAppBar({super.key, this.title = marca});
 
   /// Texto institucional do header, como na tela do Stitch. O título da tela
   /// não vem para cá: ele já é o H1 do corpo e o rail marca o destino ativo.
@@ -25,17 +20,13 @@ class PainelAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   final String title;
 
-  /// Latência da última leitura do TSE. `null` enquanto não há conexão.
-  final Duration? latency;
-
-  /// Horário da última transmissão recebida.
-  final DateTime? lastSync;
-
   @override
   Size get preferredSize => const Size.fromHeight(AppMetrics.headerHeight);
 
   @override
   Widget build(BuildContext context) {
+    final controller = ApuracaoScope.of(context);
+
     return AppBar(
       titleSpacing: AppSpacing.lg,
       title: Row(
@@ -51,44 +42,62 @@ class PainelAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         const TurnoToggle(),
         const SizedBox(width: AppSpacing.lg),
-        const LiveBadge(),
-        const SizedBox(width: AppSpacing.lg),
-        HeaderTelemetry(
-          label: 'LATÊNCIA',
-          value: latency == null ? '--' : '${latency!.inMilliseconds}ms',
+        LiveBadge(
+          live: controller.polling,
+          encerrada: controller.countingClosed,
         ),
         const SizedBox(width: AppSpacing.lg),
         HeaderTelemetry(
-          label: 'ÚLTIMA TRANSMISSÃO',
-          value: lastSync == null ? '--:--:--' : _clock(lastSync!),
+          label: 'LATÊNCIA',
+          value: controller.latency == null
+              ? '--'
+              : '${controller.latency!.inMilliseconds}ms',
+        ),
+        const SizedBox(width: AppSpacing.lg),
+        HeaderTelemetry(
+          label: 'ATUALIZADO',
+          value: controller.lastUpdated == null
+              ? '--:--:--'
+              : clockOf(controller.lastUpdated!),
         ),
         const SizedBox(width: AppSpacing.marginLarge),
       ],
     );
   }
+}
 
-  static String _clock(DateTime t) {
-    String pad(int n) => n.toString().padLeft(2, '0');
-    return '${pad(t.hour)}:${pad(t.minute)}:${pad(t.second)}';
-  }
+/// `18:24:07`, no fuso local.
+String clockOf(DateTime t) {
+  String pad(int n) => n.toString().padLeft(2, '0');
+  return '${pad(t.hour)}:${pad(t.minute)}:${pad(t.second)}';
 }
 
 /// Badge "AO VIVO - TSE DIVULGAÇÃO" com o pulso verde do design.
 class LiveBadge extends StatelessWidget {
-  const LiveBadge({super.key, this.live = true});
+  const LiveBadge({super.key, this.live = true, this.encerrada = false});
 
+  /// Consultando o TSE de tempos em tempos.
   final bool live;
+
+  /// Apuração 100% totalizada: não há mais o que atualizar.
+  final bool encerrada;
 
   @override
   Widget build(BuildContext context) {
-    final color = live ? context.election.leader : context.colors.outline;
+    final color = live
+        ? context.election.leader
+        : (encerrada
+              ? context.colors.onSurfaceVariant
+              : context.colors.outline);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         PulseDot(color: color, active: live),
         const SizedBox(width: AppSpacing.sm),
         Text(
-          live ? 'AO VIVO - TSE DIVULGAÇÃO' : 'DESCONECTADO',
+          live
+              ? 'AO VIVO - TSE DIVULGAÇÃO'
+              : (encerrada ? 'APURAÇÃO ENCERRADA' : 'PAUSADO'),
           style: context.text.labelSmall?.copyWith(color: color),
         ),
       ],

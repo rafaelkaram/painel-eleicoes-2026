@@ -17,9 +17,16 @@ class TseException implements Exception {
 
 /// Carga do TSE junto com o que o cabeçalho diz sobre validade.
 class TseFetch {
-  const TseFetch({required this.result, required this.maxAge});
+  const TseFetch({
+    required this.result,
+    required this.maxAge,
+    required this.latency,
+  });
 
   final TseResult result;
+
+  /// Quanto a requisição levou, da chamada à resposta decodificada.
+  final Duration latency;
 
   /// `max-age` do `cache-control` da resposta.
   ///
@@ -58,6 +65,7 @@ class TseClient {
   }
 
   Future<TseFetch> _fetchUrl(Uri url) async {
+    final relogio = Stopwatch()..start();
     final http.Response resposta;
     try {
       resposta = await _http.get(url).timeout(timeout);
@@ -76,6 +84,7 @@ class TseClient {
       return TseFetch(
         result: TseResult.fromJws(resposta.body),
         maxAge: _maxAge(resposta.headers['cache-control']),
+        latency: relogio.elapsed,
       );
     } on FormatException catch (e) {
       throw TseException('Carga do TSE ilegível: ${e.message}');
@@ -116,15 +125,19 @@ class TseClient {
 
   /// Busca o mesmo cargo em várias unidades federativas.
   ///
-  /// São 27 requisições. Vão em lotes para não abrir 27 conexões de uma vez
-  /// contra a CDN do TSE — e UF que falhar simplesmente não entra no
-  /// resultado, em vez de derrubar as outras 26. Um mapa com 26 estados
-  /// pintados e um cinza é melhor que uma tela de erro.
+  /// São 27 requisições. Vão em lotes pequenos de propósito: o navegador
+  /// limita conexões simultâneas por host, e uma varredura gulosa empurra a
+  /// consulta nacional para o fim da fila — medido, o intervalo efetivo do
+  /// polling ia de 5 para 42 segundos. Quatro por vez deixa folga.
+  ///
+  /// UF que falhar simplesmente não entra no resultado, em vez de derrubar
+  /// as outras 26: um mapa com 26 estados pintados e um cinza é melhor que
+  /// uma tela de erro.
   Future<Map<Uf, TseFetch>> fetchUfs({
     required int eleicao,
     required Cargo cargo,
     List<Uf> ufs = Uf.values,
-    int concurrency = 8,
+    int concurrency = 4,
   }) async {
     final resultado = <Uf, TseFetch>{};
 

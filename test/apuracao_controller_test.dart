@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:painel_eleicoes_2026/data/tse_client.dart';
 import 'package:painel_eleicoes_2026/data/tse_election.dart';
 import 'package:painel_eleicoes_2026/state/apuracao_controller.dart';
 
@@ -118,5 +119,123 @@ void main() {
     expect(c.turno, Turno.segundo);
     // O segundo turno também falha com este cliente, mas o erro é dele.
     expect(c.status, LoadStatus.failed);
+  });
+
+  group('sinais de que está vivo', () {
+    test('a carga registra latência e horário', () async {
+      final c = fakeApuracao();
+      addTearDown(c.dispose);
+
+      expect(c.latency, isNull);
+      expect(c.lastUpdated, isNull);
+
+      final antes = DateTime.now();
+      await c.load();
+
+      expect(c.latency, isNotNull);
+      expect(c.lastUpdated, isNotNull);
+      expect(
+        c.lastUpdated!.isBefore(antes.subtract(const Duration(seconds: 1))),
+        isFalse,
+      );
+    });
+
+    test('carga descartada por atraso não move o horário', () async {
+      final c = fakeApuracao();
+      addTearDown(c.dispose);
+      await c.load();
+      final primeiro = c.lastUpdated;
+
+      // A mesma carga tem o mesmo `idg`, então é rejeitada por não avançar.
+      await c.load();
+
+      expect(c.staleResponses, 1);
+      expect(c.lastUpdated, primeiro);
+    });
+
+    test('o intervalo sai do cache-control da resposta', () async {
+      final c = fakeApuracao(headers: {'cache-control': 'public, max-age=30'});
+      addTearDown(c.dispose);
+
+      await c.load();
+
+      expect(c.pollInterval, const Duration(seconds: 30));
+    });
+
+    test('cabeçalho ausente cai no piso, não em zero', () async {
+      final c = fakeApuracao();
+      addTearDown(c.dispose);
+      await c.load();
+
+      expect(c.pollInterval, TseClient.minPollInterval);
+    });
+
+    test('max-age absurdo é preso ao teto', () async {
+      final c = fakeApuracao(headers: {'cache-control': 'max-age=86400'});
+      addTearDown(c.dispose);
+      await c.load();
+
+      expect(c.pollInterval, TseClient.maxPollInterval);
+    });
+
+    test('pausar e retomar não duplica consulta', () async {
+      final c = fakeApuracao();
+      addTearDown(c.dispose);
+      await c.load();
+
+      c.pause();
+      expect(c.paused, isTrue);
+
+      c.pause(); // segunda chamada é inócua
+      expect(c.paused, isTrue);
+    });
+  });
+
+  group('apuração encerrada', () {
+    test('100% totalizado desliga o polling', () async {
+      final c = fakeApuracao(autoPoll: true);
+      addTearDown(c.dispose);
+
+      await c.load();
+
+      // A fixture do 1º turno está 100% apurada.
+      expect(c.result!.sections.counted, c.result!.sections.total);
+      expect(c.countingClosed, isTrue);
+      expect(c.polling, isFalse);
+    });
+
+    test('turno em andamento mantém o polling ligado', () async {
+      const emAndamento = '''
+{"ele":"6258","t":"2","cdabr":"br","dg":"25/10/2026","hg":"19:10:00",
+ "idg":"5","s":{"ts":"499248","st":"120000"},
+ "e":{"te":"158745502","c":"30000000","a":"1000"},
+ "v":{"tv":"30000000","vvc":"29000000","vb":"500000","tvn":"500000"},
+ "carg":[{"cd":"1","agr":[{"par":[{"sg":"PL","cand":[
+   {"n":"22","sqcand":"1","nm":"A","nmu":"A","vap":"16000000","pvapn":"55"},
+   {"n":"13","sqcand":"2","nm":"B","nmu":"B","vap":"13000000","pvapn":"45"}
+ ]}]}]}]}''';
+      final c = fakeApuracao(
+        autoPoll: true,
+        body: fixtureJws(payload: emAndamento),
+      );
+      addTearDown(c.dispose);
+
+      await c.load();
+
+      expect(c.countingClosed, isFalse);
+      expect(c.polling, isTrue);
+      expect(c.awaitingCount, isFalse);
+    });
+
+    test('pausado não conta como consultando', () async {
+      final c = fakeApuracao(autoPoll: true);
+      addTearDown(c.dispose);
+      await c.load();
+
+      c.pause();
+
+      expect(c.polling, isFalse);
+      expect(c.paused, isTrue);
+    });
   });
 }

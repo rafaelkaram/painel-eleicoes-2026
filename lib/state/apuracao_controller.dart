@@ -45,6 +45,9 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _timer;
   Timer? _timerDetalhe;
   Duration _interval = TseClient.minPollInterval;
+  Duration? _latencia;
+  DateTime? _atualizadoEm;
+  bool _varrendoUfs = false;
   bool _paused = false;
   bool _observando = false;
   bool _descartado = false;
@@ -64,6 +67,12 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Intervalo atual entre as consultas, vindo do `cache-control`.
   Duration get pollInterval => _interval;
+
+  /// Quanto demorou a última consulta bem-sucedida.
+  Duration? get latency => _latencia;
+
+  /// Quando a última carga foi aplicada na tela.
+  DateTime? get lastUpdated => _atualizadoEm;
 
   /// `true` quando a repetição está suspensa — aba oculta, por exemplo.
   bool get paused => _paused;
@@ -119,6 +128,22 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
   /// `true` enquanto as cargas por UF ainda não chegaram.
   bool get detailsPending => _presidenteUf[_turno] == null;
 
+  /// `true` quando não há mais o que esperar: 100% das seções totalizadas.
+  ///
+  /// Arquivo encerrado não muda mais — o do 1º turno está parado desde 7 de
+  /// outubro. Continuar perguntando de cinco em cinco segundos é tráfego
+  /// jogado fora, no nosso lado e no do TSE. O site de referência faz o
+  /// mesmo: para de consultar quando o pleito fecha.
+  bool get countingClosed {
+    final r = result;
+    return r != null &&
+        r.sections.counted >= r.sections.total &&
+        r.sections.total > 0;
+  }
+
+  /// `true` quando o painel ainda está consultando o TSE de tempos em tempos.
+  bool get polling => autoPoll && !_paused && !countingClosed;
+
   /// `true` quando o turno existe no TSE mas ainda não tem seção apurada.
   bool get awaitingCount {
     final r = result;
@@ -169,8 +194,10 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
       if (alvo != _turno) return;
 
       _interval = carga.maxAge;
+      _latencia = carga.latency;
       if (_aceita(alvo, carga.result)) {
         _cache[alvo] = carga.result;
+        _atualizadoEm = DateTime.now();
       } else {
         _descartadas++;
       }
@@ -194,7 +221,16 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
   /// UF que falhar fica de fora: um mapa com 26 estados pintados é melhor
   /// que uma tela de erro.
   Future<void> loadDetails() async {
-    if (_descartado) return;
+    if (_descartado || _varrendoUfs) return;
+    _varrendoUfs = true;
+    try {
+      await _varrerUfs();
+    } finally {
+      _varrendoUfs = false;
+    }
+  }
+
+  Future<void> _varrerUfs() async {
     final alvo = _turno;
 
     // No 2º turno, governador só existe onde houve segundo turno.
@@ -205,14 +241,21 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
               ?Uf.bySigla(sigla),
           ];
 
-    final cargas = await Future.wait([
-      _client.fetchUfs(eleicao: alvo.presidente, cargo: Cargo.presidente),
-      _client.fetchUfs(
-        eleicao: alvo.governador,
-        cargo: Cargo.governador,
-        ufs: ufsGoverno,
-      ),
-    ]);
+    // Em sequência, não em paralelo: duas varreduras juntas dobram as
+    // conexões simultâneas e sufocam a consulta nacional, que é a que muda
+    // a cada minuto numa noite de apuração.
+    final presidentePorUf = await _client.fetchUfs(
+      eleicao: alvo.presidente,
+      cargo: Cargo.presidente,
+    );
+    if (_descartado || alvo != _turno) return;
+
+    final governadorPorUf = await _client.fetchUfs(
+      eleicao: alvo.governador,
+      cargo: Cargo.governador,
+      ufs: ufsGoverno,
+    );
+    final cargas = [presidentePorUf, governadorPorUf];
 
     // No 2º turno a tela mostra também quem já venceu no 1º, então a
     // carga do primeiro turno precisa estar em mãos.
@@ -255,7 +298,7 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _scheduleDetails() {
     _timerDetalhe?.cancel();
-    if (_descartado || !autoPoll || _paused) return;
+    if (_descartado || !autoPoll || _paused || countingClosed) return;
     _timerDetalhe = Timer(detailInterval, loadDetails);
   }
 
@@ -268,7 +311,7 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _schedule() {
     _timer?.cancel();
-    if (_descartado || !autoPoll || _paused) return;
+    if (_descartado || !autoPoll || _paused || countingClosed) return;
     _timer = Timer(_interval, load);
   }
 
@@ -282,6 +325,9 @@ class ApuracaoController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Retoma a repetição e busca imediatamente, para cobrir o tempo parado.
+  ///
+  /// Com a apuração encerrada, consulta uma vez para confirmar e para de
+  /// novo — pode ter virado turno enquanto a aba estava oculta.
   void resume() {
     if (!_paused) return;
     _paused = false;
