@@ -1,5 +1,7 @@
 # Painel Eleições 2026
 
+[![CI](https://github.com/rafaelkaram/painel-eleicoes-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaelkaram/painel-eleicoes-2026/actions/workflows/ci.yml)
+
 Painel de acompanhamento da apuração das Eleições Gerais 2026, feito em
 Flutter Web sobre os dados públicos do TSE.
 
