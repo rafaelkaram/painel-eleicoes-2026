@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Terminal de votação com apuração na tela">
+  <rect width="64" height="64" rx="14" fill="#0A0E16"/>
+  <!-- base com teclado -->
+  <rect x="9" y="39" width="46" height="15" rx="4" fill="#262A33"/>
+  <g fill="#3C4A3C">
+    <rect x="15" y="44" width="5" height="5" rx="1.5"/>
+    <rect x="23" y="44" width="5" height="5" rx="1.5"/>
+    <rect x="31" y="44" width="5" height="5" rx="1.5"/>
+    <rect x="39" y="44" width="5" height="5" rx="1.5"/>
+    <rect x="47" y="44" width="5" height="5" rx="1.5"/>
+  </g>
+  <!-- tela -->
+  <rect x="14" y="10" width="36" height="27" rx="4" fill="#0F131C"/>
+  <rect x="14.75" y="10.75" width="34.5" height="25.5" rx="3.25" fill="none" stroke="#3C4A3C" stroke-width="1.5"/>
+  <!-- linhas de telemetria -->
+  <rect x="19" y="16" width="14" height="3" rx="1.5" fill="#3C4A3C"/>
+  <!-- a barra dividida do painel -->
+  <clipPath id="b-barra"><rect x="19" y="24" width="26" height="6" rx="3"/></clipPath>
+  <g clip-path="url(#b-barra)">
+    <rect x="19" y="24" width="13.5" height="6" fill="#3FE56C"/>
+    <rect x="32.5" y="24" width="12.5" height="6" fill="#FFB95F"/>
+  </g>
+</svg>

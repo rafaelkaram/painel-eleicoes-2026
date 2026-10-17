@@ -1,0 +1,53 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Permissões mínimas para publicar no Pages via OIDC.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Uma publicação por vez; empurrões novos cancelam a fila, não o que já roda.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construir:
+    name: Build web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # O Pages serve a partir de /<repo>/, então o base-href precisa
+      # acompanhar — sem isso o app carrega em branco.
+      - name: Build
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  publicar:
+    name: Publicar no Pages
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

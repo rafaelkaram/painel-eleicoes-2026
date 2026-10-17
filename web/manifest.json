@@ -1,0 +1,35 @@
+{
+    "name": "Painel Eleições 2026",
+    "short_name": "Eleições 2026",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0F131C",
+    "theme_color": "#0F131C",
+    "description": "Apuração das Eleições 2026 em tempo real.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

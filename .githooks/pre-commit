@@ -1,0 +1,21 @@
+#!/bin/sh
+# Barreira antes do commit: formatação, análise estática e testes.
+#
+# Ligue com:  git config core.hooksPath .githooks
+# Pule uma vez com:  git commit --no-verify
+set -e
+
+echo "▸ dart format"
+if ! dart format --set-exit-if-changed --output=none lib test; then
+  echo
+  echo "Arquivos fora do formato. Rode 'dart format lib test' e refaça o commit." >&2
+  exit 1
+fi
+
+echo "▸ flutter analyze"
+flutter analyze --no-pub
+
+echo "▸ flutter test"
+flutter test --no-pub --reporter=compact
+
+echo "✓ pronto para commitar"

@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    name: Formato, análise e testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Dependências
+        run: flutter pub get
+
+      # Mesma ordem do hook de pre-commit: o que falha aqui já falharia lá.
+      - name: Formatação
+        run: dart format --set-exit-if-changed --output=none lib test
+
+      - name: Análise estática
+        run: flutter analyze
+
+      - name: Testes
+        run: flutter test --reporter=expanded
+
+      - name: Build web
+        run: flutter build web --release

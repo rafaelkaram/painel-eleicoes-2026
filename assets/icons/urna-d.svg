@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Urna com apuração ao vivo">
+  <rect width="64" height="64" rx="14" fill="#0A0E16"/>
+  <!-- corpo da urna, claro o bastante para sobreviver a 16px -->
+  <rect x="11" y="23" width="42" height="30" rx="5" fill="#353942"/>
+  <!-- boca acesa: a forma que domina em tamanho pequeno -->
+  <rect x="19" y="16" width="26" height="8" rx="4" fill="#3FE56C"/>
+  <!-- barra dividida do painel, na face -->
+  <clipPath id="d-barra"><rect x="18" y="33" width="28" height="9" rx="4.5"/></clipPath>
+  <g clip-path="url(#d-barra)">
+    <rect x="18" y="33" width="14.5" height="9" fill="#3FE56C"/>
+    <rect x="32.5" y="33" width="13.5" height="9" fill="#FFB95F"/>
+  </g>
+  <!-- pulso ao vivo -->
+  <circle cx="49" cy="15" r="10" fill="#0A0E16"/>
+  <circle cx="49" cy="15" r="9.5" fill="#3FE56C" opacity="0.25"/>
+  <circle cx="49" cy="15" r="5.5" fill="#3FE56C"/>
+</svg>
