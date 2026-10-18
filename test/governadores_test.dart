@@ -10,6 +10,7 @@ import 'package:painel_eleicoes_2026/widgets/candidate_avatar.dart';
 import 'package:painel_eleicoes_2026/widgets/elected_summary.dart';
 import 'package:painel_eleicoes_2026/widgets/governor_map.dart';
 import 'package:painel_eleicoes_2026/widgets/governor_race_card.dart';
+import 'package:painel_eleicoes_2026/widgets/pulse_dot.dart';
 
 import 'helpers.dart';
 
@@ -18,6 +19,10 @@ void main() {
 
   GovernorRace porUf(String uf) =>
       DemoRaces.all.firstWhere((race) => race.uf == uf);
+
+  /// Mesmo candidato, sem nenhum voto — o estado de um turno que não começou.
+  GovernorCandidate zerar(GovernorCandidate c) =>
+      GovernorCandidate(identity: c.identity, votes: 0, share: 0);
 
   group('GovernorRace.status', () {
     // Os rótulos que a tela do Stitch mostra em cada card. A regra derivada
@@ -430,6 +435,75 @@ void main() {
     test('sem declaração, a derivação continua valendo', () {
       expect(porUf('RS').declaredStatus, isNull);
       expect(porUf('RS').status, RaceStatus.tooCloseToCall);
+    });
+
+    test('sem seção totalizada, nem o carimbo do TSE vira disputa', () {
+      // O 2º turno antes da votação: o TSE ainda traz "2º turno" na
+      // situação do líder, que é classificação do turno anterior. Com
+      // margem 0 cabendo em 100% de resto, a derivação dizia "disputa
+      // acirrada" — disputa que não começou não é acirrada.
+      final sp = porUf('SP');
+      final zerada = GovernorRace(
+        uf: sp.uf,
+        name: sp.name,
+        region: sp.region,
+        electorate: sp.electorate,
+        countedShare: 0,
+        leader: zerar(sp.leader),
+        runnerUp: zerar(sp.runnerUp),
+        declaredStatus: RaceStatus.tooCloseToCall,
+      );
+
+      expect(zerada.status, RaceStatus.awaiting);
+      expect(zerada.status.chipLabel, 'Aguardando Apuração');
+    });
+
+    test('eleito declarado vence até o zero de seções', () {
+      // Trava de segurança: a palavra do órgão oficial sobre quem elegeu
+      // não pode ser apagada por um arquivo que veio sem contagem.
+      final sp = porUf('SP');
+      final eleita = GovernorRace(
+        uf: sp.uf,
+        name: sp.name,
+        region: sp.region,
+        electorate: sp.electorate,
+        countedShare: 0,
+        leader: zerar(sp.leader),
+        runnerUp: zerar(sp.runnerUp),
+        declaredStatus: RaceStatus.elected,
+      );
+
+      expect(eleita.status, RaceStatus.elected);
+    });
+
+    testWidgets('card zerado não mostra chip de disputa nem barra dividida', (
+      tester,
+    ) async {
+      final sp = porUf('SP');
+      final zerada = GovernorRace(
+        uf: sp.uf,
+        name: sp.name,
+        region: sp.region,
+        electorate: sp.electorate,
+        countedShare: 0,
+        leader: zerar(sp.leader),
+        runnerUp: zerar(sp.runnerUp),
+      );
+
+      await pumpInTheme(
+        tester,
+        SizedBox(width: 480, child: GovernorRaceCard(race: zerada)),
+      );
+
+      expect(find.textContaining('ACIRRADA'), findsNothing);
+      expect(find.textContaining('LIDERANDO'), findsNothing);
+      expect(find.text('AGUARDANDO APURAÇÃO'), findsOneWidget);
+      expect(find.text('Sem Seção Totalizada'), findsOneWidget);
+      expect(
+        find.byType(PulseDot),
+        findsNothing,
+        reason: 'ponto pulsante diz que está chegando voto',
+      );
     });
   });
 

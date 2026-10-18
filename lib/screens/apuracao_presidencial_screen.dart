@@ -78,10 +78,12 @@ class ApuracaoPresidencialScreen extends StatelessWidget {
             final lider = CandidateCard(
               tally: candidatos[0],
               partyColor: corLider,
+              awaitingCount: controller.awaitingCount,
             );
             final vice = CandidateCard(
               tally: candidatos[1],
               partyColor: corVice,
+              awaitingCount: controller.awaitingCount,
             );
             if (constraints.maxWidth < _twoColumnBreakpoint) {
               return Column(

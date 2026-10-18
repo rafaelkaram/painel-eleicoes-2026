@@ -166,6 +166,10 @@ class _StatusChip extends StatelessWidget {
         context.colors.surfaceContainerHigh,
         context.election.contested,
       ),
+      RaceStatus.awaiting => (
+        context.colors.surfaceContainerHigh,
+        context.colors.onSurfaceVariant,
+      ),
     };
 
     return Container(
@@ -183,6 +187,9 @@ class _StatusChip extends StatelessWidget {
         children: [
           if (status == RaceStatus.elected)
             Icon(Icons.check_circle, size: 13, color: foreground)
+          else if (status == RaceStatus.awaiting)
+            // Ponto pulsante diz "chegando agora"; aqui não chega nada.
+            Icon(Icons.hourglass_empty, size: 13, color: foreground)
           else
             PulseDot(color: foreground, size: 6),
           Text(
@@ -380,6 +387,19 @@ class _SplitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Com zero voto dos dois lados, o `clamp` abaixo daria flex 1 para cada
+    // e a barra sairia meio a meio nas cores dos partidos — um empate que
+    // ninguém disputou. Sem apuração, a barra fica vazia.
+    if (race.status == RaceStatus.awaiting) {
+      return ClipRRect(
+        borderRadius: AppRadius.pill,
+        child: SizedBox(
+          height: 12,
+          child: ColoredBox(color: context.colors.surfaceContainerHigh),
+        ),
+      );
+    }
+
     return ClipRRect(
       borderRadius: AppRadius.pill,
       child: SizedBox(
@@ -417,6 +437,15 @@ class _Footnote extends StatelessWidget {
     final muted = context.text.labelSmall?.copyWith(
       color: context.colors.onSurfaceVariant,
     );
+
+    if (race.status == RaceStatus.awaiting) {
+      return Text(
+        race.status.footnoteLabel,
+        style: muted,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
 
     return Row(
       children: [

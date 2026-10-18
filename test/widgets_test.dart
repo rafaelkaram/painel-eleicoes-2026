@@ -57,6 +57,44 @@ void main() {
       expect(textColor(tester, '51,72%'), AppColors.primary);
     });
 
+    testWidgets('turno sem urna apurada não exibe chip de posição', (
+      tester,
+    ) async {
+      // 2º turno antes da votação: o TSE já devolve os dois classificados
+      // com zero voto. Ordenar dois zeros produzia "EMPATE TÉCNICO" no
+      // primeiro e "2º COLOCADO" no segundo — posição inventada.
+      await pumpInTheme(
+        tester,
+        const Column(
+          children: [
+            CandidateCard(tally: DemoTallies.leading, awaitingCount: true),
+            CandidateCard(tally: DemoTallies.runnerUp, awaitingCount: true),
+          ],
+        ),
+        surface: const Size(900, 1200),
+      );
+
+      expect(find.textContaining('EMPATE'), findsNothing);
+      expect(find.textContaining('COLOCADO'), findsNothing);
+      expect(find.textContaining('LIDERANDO'), findsNothing);
+      expect(find.byIcon(Icons.trending_up), findsNothing);
+      expect(find.byIcon(Icons.verified), findsNothing);
+      // O nome continua lá: some o veredito, não o candidato.
+      expect(find.text(DemoTallies.leading.name), findsOneWidget);
+    });
+
+    testWidgets('com urna apurada o chip de posição volta', (tester) async {
+      await pumpInTheme(
+        tester,
+        const CandidateCard(tally: DemoTallies.runnerUp),
+      );
+
+      expect(
+        find.text(DemoTallies.runnerUp.standingLabel.toUpperCase()),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('com retrato não cai no placeholder', (tester) async {
       expect(DemoTallies.leading.portrait, isNotNull);
 

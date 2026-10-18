@@ -359,11 +359,13 @@ class _SummaryEntry extends StatelessWidget {
       RaceStatus.elected => context.colors.primaryContainer,
       RaceStatus.leading => context.election.leader,
       RaceStatus.tooCloseToCall => context.election.contested,
+      RaceStatus.awaiting => context.colors.onSurfaceVariant,
     };
     final rotulo = switch (status) {
       RaceStatus.elected => 'Definidos',
       RaceStatus.leading => 'Liderança consolidada',
       RaceStatus.tooCloseToCall => 'Voto a voto',
+      RaceStatus.awaiting => 'Aguardando apuração',
     };
 
     return Row(

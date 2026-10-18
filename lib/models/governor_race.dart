@@ -24,7 +24,10 @@ enum RaceStatus {
   leading('Liderando', 'Diferença Nominal'),
 
   /// A diferença ainda cabe no que falta apurar.
-  tooCloseToCall('Disputa Acirrada', 'Margem Voto a Voto');
+  tooCloseToCall('Disputa Acirrada', 'Margem Voto a Voto'),
+
+  /// Nenhuma seção totalizada: não há disputa para caracterizar ainda.
+  awaiting('Aguardando Apuração', 'Sem Seção Totalizada');
 
   const RaceStatus(this.chipLabel, this.footnoteLabel);
 
@@ -119,8 +122,16 @@ class GovernorRace {
   /// apurar for maior que a diferença, o resultado ainda pode virar. Um
   /// limiar fixo de margem erraria nos dois sentidos — 3,4 pontos com 0,9%
   /// de seções pendentes está decidido; 3,8 pontos com 8% pendentes não.
+  /// Com zero seção totalizada a regra acima sempre diria "disputa
+  /// acirrada" — margem 0 cabe em qualquer resto. Mas disputa que não
+  /// começou não é acirrada, é inexistente, e o carimbo de "2º turno" que
+  /// vem do TSE é classificação do turno anterior, não situação deste.
+  /// Eleito declarado continua valendo: é a palavra do órgão oficial.
   RaceStatus get status {
-    if (declaredStatus case final declarado?) return declarado;
+    final declarado = declaredStatus;
+    if (declarado == RaceStatus.elected) return RaceStatus.elected;
+    if (countedShare <= 0) return RaceStatus.awaiting;
+    if (declarado != null) return declarado;
     if (countedShare >= 1) return RaceStatus.elected;
     return margin <= remaining ? RaceStatus.tooCloseToCall : RaceStatus.leading;
   }

@@ -16,7 +16,12 @@ import '../util/formatters.dart';
 /// `stat-metric` e barra de progresso de 12px. O acento cromático sai de
 /// [CandidateTally.standing] — verde para o líder, âmbar para o segundo.
 class CandidateCard extends StatelessWidget {
-  const CandidateCard({super.key, required this.tally, this.partyColor});
+  const CandidateCard({
+    super.key,
+    required this.tally,
+    this.partyColor,
+    this.awaitingCount = false,
+  });
 
   final CandidateTally tally;
 
@@ -24,6 +29,17 @@ class CandidateCard extends StatelessWidget {
   /// líder ou segundo colocado — é o que acontece quando o cadastro não
   /// trouxe sigla.
   final Color? partyColor;
+
+  /// `true` quando o pleito ainda não teve nenhuma seção totalizada.
+  ///
+  /// Nesse estado o card não enuncia posição: "empate técnico" e "2º
+  /// colocado" saem de uma ordenação entre dois zeros, e num turno que
+  /// sequer começou isso é afirmar resultado onde não há nenhum.
+  ///
+  /// Vem do controlador, não dos votos do próprio candidato: numa noite de
+  /// apuração de verdade um lado pode estar zerado com urna já aberta, e aí
+  /// 2º colocado é informação legítima.
+  final bool awaitingCount;
 
   @override
   Widget build(BuildContext context) {
@@ -79,10 +95,15 @@ class CandidateCard extends StatelessWidget {
                     accent: accent,
                     onAccent: onAccent,
                     status: status,
+                    awaitingCount: awaitingCount,
                   ),
                   _Tally(tally: tally, accent: accent),
                   _ShareBar(share: tally.share, accent: accent),
-                  _Footer(tally: tally, accent: accent),
+                  _Footer(
+                    tally: tally,
+                    accent: accent,
+                    awaitingCount: awaitingCount,
+                  ),
                 ],
               ),
             ),
@@ -99,12 +120,14 @@ class _Identification extends StatelessWidget {
     required this.accent,
     required this.onAccent,
     required this.status,
+    required this.awaitingCount,
   });
 
   final CandidateTally tally;
   final Color accent;
   final Color onAccent;
   final Color status;
+  final bool awaitingCount;
 
   @override
   Widget build(BuildContext context) {
@@ -142,10 +165,12 @@ class _Identification extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Flexible(
-          child: _StandingChip(tally: tally, accent: status),
-        ),
+        if (!awaitingCount) ...[
+          const SizedBox(width: AppSpacing.sm),
+          Flexible(
+            child: _StandingChip(tally: tally, accent: status),
+          ),
+        ],
       ],
     );
   }
@@ -339,10 +364,15 @@ class _ShareBar extends StatelessWidget {
 }
 
 class _Footer extends StatelessWidget {
-  const _Footer({required this.tally, required this.accent});
+  const _Footer({
+    required this.tally,
+    required this.accent,
+    required this.awaitingCount,
+  });
 
   final CandidateTally tally;
   final Color accent;
+  final bool awaitingCount;
 
   @override
   Widget build(BuildContext context) {
@@ -351,9 +381,9 @@ class _Footer extends StatelessWidget {
     );
     return Row(
       children: [
-        // Sem voto apurado não há o que confirmar: o selo verde ao lado de
+        // Sem urna apurada não há o que confirmar: o selo verde ao lado de
         // "Aguardando apuração" lia como candidato já eleito.
-        if (tally.isLeading && tally.votes > 0) ...[
+        if (tally.isLeading && !awaitingCount) ...[
           Icon(Icons.verified, size: 16, color: context.election.leader),
           const SizedBox(width: AppSpacing.xs),
         ],
