@@ -35,6 +35,14 @@ jobs:
       - name: Build
         run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
+      # O app usa URL sem `#`, e o Pages é servidor estático: ele procura um
+      # arquivo chamado `apuracao` no disco e devolve 404 antes de o Flutter
+      # subir. Servindo o mesmo index como página de erro, o app carrega e o
+      # go_router lê a URL real. É o preço de manter a rota limpa — a
+      # resposta sai com status 404, mas a tela certa aparece.
+      - name: Fallback de rota para o Pages
+        run: cp build/web/index.html build/web/404.html
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
